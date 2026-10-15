@@ -1999,6 +1999,13 @@ export type $InferObjectInput<T extends $ZodLooseShape, Extra extends Record<str
         } & Extra
       >;
 
+/** Own keys, plus inherited keys that are not still Object.prototype's own members. */
+export function hasObjectKey(input: object, key: PropertyKey): boolean {
+  if (!(key in input)) return false;
+  if (Object.prototype.hasOwnProperty.call(input, key)) return true;
+  return !(key in Object.prototype) || (input as any)[key] !== (Object.prototype as any)[key];
+}
+
 function handlePropertyResult(
   result: ParsePayload,
   final: ParsePayload,
@@ -2007,7 +2014,7 @@ function handlePropertyResult(
   optin: "optional" | "defaulted" | undefined,
   optout: "optional" | undefined
 ) {
-  const isPresent = key in input;
+  const isPresent = hasObjectKey(input, key);
   const isOptionalOut = optout === "optional";
   // The middle rung means "absence permitted, nothing supplied in its place", so an absent key contributes nothing — whatever the schema made of `undefined` is invented, not substituted. Only `optional` reaches this with a value: `defaulted` substitutes, and a schema that isn't optional-out has to keep the key.
   if (!isPresent && isOptionalOut && optin === "optional") {
@@ -2252,7 +2259,7 @@ export const $ZodObject: core.$constructor<$ZodObject> = /*@__PURE__*/ core.$con
       const optin = el._zod.optin;
       const optout = el._zod.optout;
 
-      const r = el._zod.run({ value: input[key], issues: [] }, ctx);
+      const r = el._zod.run({ value: hasObjectKey(input, key) ? input[key] : undefined, issues: [] }, ctx);
       if (r instanceof Promise) {
         proms.push(r.then((r) => handlePropertyResult(r, payload, key, input, optin, optout)));
       } else {
@@ -2283,9 +2290,10 @@ export const $ZodObjectJIT: core.$constructor<$ZodObject> = /*@__PURE__*/ core.$
       const normalized = _normalized.value;
       const syms = normalized.symbolKeys;
       // a symbol has no source literal, so it is read as `syms[i]` off the closed-over scope
-      const doc = new Doc(["payload", "ctx"], { shape, inst, memo, syms });
+      const doc = new Doc(["payload", "ctx"], { shape, inst, memo, syms, hasObjectKey });
 
-      const parseStr = (k: string) => `shape[${k}]._zod.run({ value: input[${k}], issues: [] }, ctx)`;
+      const parseStr = (k: string) =>
+        `shape[${k}]._zod.run({ value: hasObjectKey(input, ${k}) ? input[${k}] : undefined, issues: [] }, ctx)`;
 
       // prefixes in place, like util.prefixIssues. newResult must land before the early return: a catchall runs after this and would otherwise write onto the caller's input
       const prefixStr = (id: string, k: string) => `
@@ -2315,7 +2323,7 @@ export const $ZodObjectJIT: core.$constructor<$ZodObject> = /*@__PURE__*/ core.$
         if (key === "__proto__") continue;
         const id = ids[key];
         const k = typeof key === "symbol" ? `syms[${syms.indexOf(key)}]` : util.esc(key);
-        const isPresent = `${k} in input`;
+        const isPresent = `hasObjectKey(input, ${k})`;
         const schema = shape[key];
         const optin = schema?._zod?.optin;
         const isOptionalIn = optin !== undefined;

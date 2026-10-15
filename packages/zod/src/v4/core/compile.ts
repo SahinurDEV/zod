@@ -5,6 +5,7 @@ import { Doc } from "./doc.js";
 import { isBackEdge, isRecursiveSchema } from "./memoizer.js";
 import * as regexes from "./regexes.js";
 import {
+  hasObjectKey,
   isValidBase64,
   isValidBase64URL,
   isValidCIDRv6,
@@ -1217,6 +1218,7 @@ function generateObjectCheck(
 
   // Map from key to output accessor for that property
   const propOutputs = new Map<string | symbol, string>();
+  const hasKey = addConstant(ctx, hasObjectKey);
 
   // Validate each property and collect output accessors
   for (const key of allKeys) {
@@ -1224,7 +1226,7 @@ function generateObjectCheck(
     const kx = keyExpr(key);
     // Always cache the property read: the runtime reads input[key] exactly once, so a getter must not be re-read by checks or output assembly.
     const inputVar = newVar(ctx);
-    doc.write(`const ${inputVar} = ${accessor}[${kx}];`);
+    doc.write(`const ${inputVar} = ${hasKey}(${accessor}, ${kx}) ? ${accessor}[${kx}] : undefined;`);
 
     if (propSchema._zod.optin !== undefined) {
       // Any optin rung means the key may be omitted. The runtime runs the property anyway and ignores issues only when the key is genuinely absent, which is what makes exactOptional compositional.
@@ -1239,7 +1241,7 @@ function generateObjectCheck(
       if (propSchema._zod.optout === "optional") {
         doc.write(`if (${outputVar} === INVALID) {`);
         doc.indented((d) => {
-          d.write(`if (${kx} in ${accessor}) return INVALID;`);
+          d.write(`if (${hasKey}(${accessor}, ${kx})) return INVALID;`);
           d.write(`${outputVar} = undefined;`);
         });
         doc.write(`}`);
@@ -1249,7 +1251,7 @@ function generateObjectCheck(
       propOutputs.set(key, outputVar);
     } else {
       if (requiresPresenceCheck(propSchema)) {
-        doc.write(`if (!(${kx} in ${accessor})) return INVALID;`);
+        doc.write(`if (!${hasKey}(${accessor}, ${kx})) return INVALID;`);
       }
 
       // Generate check and get output accessor
@@ -1311,9 +1313,9 @@ function generateObjectCheck(
       const kx = keyExpr(k);
       const out = propOutputs.get(k);
       if (dropsWhenAbsent(propShape[k]!)) {
-        doc.write(`if (${kx} in ${accessor}) ${outputVar}[${kx}] = ${out};`);
+        doc.write(`if (${hasKey}(${accessor}, ${kx})) ${outputVar}[${kx}] = ${out};`);
       } else if (mayOmitUndefined(propShape[k]!)) {
-        doc.write(`if (${out} !== undefined || ${kx} in ${accessor}) ${outputVar}[${kx}] = ${out};`);
+        doc.write(`if (${out} !== undefined || ${hasKey}(${accessor}, ${kx})) ${outputVar}[${kx}] = ${out};`);
       } else {
         doc.write(`${outputVar}[${kx}] = ${out};`);
       }

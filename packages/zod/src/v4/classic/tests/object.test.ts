@@ -1004,3 +1004,74 @@ describe("symbol keys in object shape", () => {
     expect(() => z.object({ [SYM]: 123 as any }).parse({})).toThrow(/Invalid element at key "Symbol\(sym\)"/);
   });
 });
+
+// Optional keys named after Object.prototype members must treat a plain object that lacks them as absent (#6666).
+describe("Object.prototype member keys", () => {
+  const protoKeys = [
+    "constructor",
+    "toString",
+    "valueOf",
+    "hasOwnProperty",
+    "isPrototypeOf",
+    "propertyIsEnumerable",
+    "toLocaleString",
+  ] as const;
+
+  test.each(protoKeys)("optional %s is absent on {}", (key) => {
+    const schema = z.object({ [key]: z.string().optional() });
+    const result = schema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({});
+      expect(Object.prototype.hasOwnProperty.call(result.data, key)).toBe(false);
+    }
+  });
+
+  test("exactOptional toString is absent on JSON.parse({})", () => {
+    const schema = z.object({ toString: z.string().exactOptional() });
+    const result = schema.safeParse(JSON.parse("{}"));
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toEqual({});
+  });
+
+  test("default valueOf applies when absent", () => {
+    const schema = z.object({ valueOf: z.string().default("d") });
+    const result = schema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toEqual({ valueOf: "d" });
+  });
+
+  test("required constructor unknown fails when absent", () => {
+    const schema = z.object({ constructor: z.unknown() });
+    const result = schema.safeParse({});
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]).toMatchObject({
+        code: "invalid_type",
+        expected: "nonoptional",
+        path: ["constructor"],
+      });
+    }
+  });
+
+  test("own constructor value is still parsed", () => {
+    const schema = z.object({ constructor: z.string() });
+    expect(schema.parse({ constructor: "ok" })).toEqual({ constructor: "ok" });
+  });
+
+  test("jitless path matches", () => {
+    const optional = z.object({ constructor: z.string().optional() }).safeParse({}, { jitless: true } as any);
+    expect(optional.success).toBe(true);
+    if (optional.success) expect(optional.data).toEqual({});
+
+    const required = z.object({ constructor: z.unknown() }).safeParse({}, { jitless: true } as any);
+    expect(required.success).toBe(false);
+  });
+
+  test("inherited non-Object.prototype key still counts as present", () => {
+    const proto = { tag: "from-proto" };
+    const input = Object.create(proto);
+    const schema = z.object({ tag: z.string() });
+    expect(schema.parse(input)).toEqual({ tag: "from-proto" });
+  });
+});
