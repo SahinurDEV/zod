@@ -1362,17 +1362,17 @@ test("an island thrown from inside an indented block leaves the indent level alo
   // nullable opens an indented block, coerce throws inside it, and the property islands the pair — two of them so a leak compounds
   const schema = z.object({ a: z.coerce.number().nullable(), b: z.coerce.number().nullable(), tail: z.string() });
   expect(compileFn(schema, { debug: true }).code).toMatchInlineSnapshot(`
-    "// Constants: INVALID, c0, c1, c2
+    "// Constants: INVALID, c0, c1, c2, c3
     if (typeof input !== "object" || input === null || Array.isArray(input)) return INVALID;
-    const v0 = input["a"];
-    if (!("a" in input)) return INVALID;
-    const v1 = c1(c0, v0);
+    const v0 = c0(input, "a") ? input["a"] : undefined;
+    if (!c0(input, "a")) return INVALID;
+    const v1 = c2(c1, v0);
     if (v1 === INVALID) return INVALID;
-    const v2 = input["b"];
-    if (!("b" in input)) return INVALID;
-    const v3 = c1(c2, v2);
+    const v2 = c0(input, "b") ? input["b"] : undefined;
+    if (!c0(input, "b")) return INVALID;
+    const v3 = c2(c3, v2);
     if (v3 === INVALID) return INVALID;
-    const v4 = input["tail"];
+    const v4 = c0(input, "tail") ? input["tail"] : undefined;
     if (typeof v4 !== "string") return INVALID;
     const v5 = { "a": v1, "b": v3, "tail": v4 };
     return v5;"

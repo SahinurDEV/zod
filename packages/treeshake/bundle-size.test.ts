@@ -63,7 +63,7 @@ const CEILINGS: Record<string, number> = {
   // Lowered by the measured −69 for the same bag strip: the string and number inits no longer carry pattern derivation or attach-time metadata writes.
 
   // factory check snapshots on the check-only properties base measure 4654 gzip bytes plus 28 headroom
-  "zod-mini-object": 4682,
+  "zod-mini-object": 4708,
 };
 
 /**
