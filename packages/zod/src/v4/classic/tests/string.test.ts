@@ -1263,6 +1263,8 @@ test("CIDR v6 validation", () => {
   expect(cidrV6.safeParse("2001:db8::").success).toBe(false); // Missing prefix
   expect(cidrV6.safeParse("2001:db8::/129").success).toBe(false); // Invalid prefix length
   expect(cidrV6.safeParse("2001:db8::/abc").success).toBe(false); // Invalid prefix format
+  expect(cidrV6.safeParse("2001:db8::/64.5").success).toBe(false); // Fractional prefix length
+  expect(cidrV6.safeParse("2001:db8::/0.5").success).toBe(false);
   expect(cidrV6.safeParse("not a cidr").success).toBe(false); // Invalid format
   expect(cidrV6.safeParse("192.168.0.0/24").success).toBe(false); // IPv4 CIDR in v6 validation
   expect(cidrV6.safeParse("2001:0db8:85a3::/64/whatever-after").success).toBe(false);
